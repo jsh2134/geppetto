@@ -100,38 +100,3 @@ class PuppetMaster(object):
 		# Install Python requirements with pip
 		put(settings.PIP_REQS, remote_home_dir, use_sudo=True)
 
-		#TODO
-		#virtualenv('pip install -r %s' % (os.path.join(remote_home_dir, settings.PIP_REQS)))
-
-
-	#def virtualenv(command, use_sudo=True):
-	#	""" Execute a command with sudo under venv """
-	#	with cd(env.directory):
-	#		sudo('source ' + env.activate + ' && ' + command)
-			
-"""
-#TODO wtf about below
-
-def host(hostname):
-	print "Setting host to %s" % hostname
-	env.host_string = "%s@%s" % ( HOSTS[hostname]['user'], \
-									HOSTS[hostname]['host'])
-	
-	# Activate VirtualEnv
-	if 'env' in HOSTS[hostname]:
-		env.directory = HOSTS[hostname]['dir']
-		env.activate = HOSTS[hostname]['env']
-		env.deploy_user = HOSTS[hostname]['deploy_user']
-
-
-def ssh(hostname):
-	
-	# Set Host
-	host(hostname)
-
-	local('ssh -i %s %s@%s' % ( HOSTS[hostname]['key'],
-								HOSTS[hostname]['user'],
-								HOSTS[hostname]['host'],
-								) )
-
-	"""
