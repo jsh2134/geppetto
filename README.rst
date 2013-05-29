@@ -1,12 +1,20 @@
-Geppetto Readme
+Geppetto
 ##################
 
-Here it is!
+Deploy, Install and Administrate your Amazon Infrastructure fast
 
+Status
+-------
+This is still a work in progress and most likely is broken right now. Moving towards a stable release.
+
+Currently working on
+- defining multiple Puppet configs
+- installing everything under virtualenv
+- examples
 
 
 Sample Python Usage
-
+--------------------
 ::
 
         from geppetto import PuppetMaster
