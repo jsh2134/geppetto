@@ -1,37 +1,32 @@
-import sys
+import os
+import logging
+import ConfigParser
 
-try:
-	from settings_local import aws_key, aws_secret, aws_key_path
-	from settings_local import aws_key_pair, aws_security_group
-except:
-	print """Error: You need to create a settings_local.py file
-				 with your amazon secret variables!"""
-	sys.exit(1)
 
-PROJECT_NAME = 'puppet'
+def load_puppet_configs(configs_dir=None):
 
-# List of yum Packages to Install
-YUM_PACKAGES = [ 
-					#'make',
-					#'nginx',
-				]
+	if not configs_dir:
+		base = os.path.dirname(__file__)
+		configs_path = os.path.abspath(os.path.join(base, 'puppets'))
 
-# Pip Requirements file
-PIP_REQS = 'requirements.txt'
+	config = ConfigParser.RawConfigParser(allow_no_value=True)
+	puppet_configs = [os.path.join(configs_path,f) for f in os.listdir(configs_path)]
 
-# Here lie the Amazon secrets
-AWS = {
-			'secrets' : {
-				'aws_key' : aws_key,
-				'aws_secret': aws_secret,
-				'aws_key_path': aws_key_path,
-			},
-			'defaults' : {
-					'image_id' : 'ami-3d4ff254',       # Ubuntu Cloud 64-bit
-					#'instance_type' : 'hi1.4xlarge',      # Big Boy
-					'instance_type' : 't1.micro',      # Baby Boy
-					'security_groups': [aws_security_group], 
-					'key_name': aws_key_pair,
-			}
-}
+	puppets = {}
+	for puppet in puppet_configs:
+		config.read(puppet)
+		try:
+			name = config.get('main', 'name')
+		except:
+			logging.error('Config %s does not contain Section "%s" with variable "%s" ' % (puppet, 'main', 'name') )
+		puppets[name] = {}
+		for section in config.sections():
+			puppets[name][section] = dict(config.items(section))
 
+	logging.info("Loaded Configs for %s" % puppets.keys())
+	print("Loaded Configs for %s" % puppets.keys())
+	return puppets
+
+# Get Puppet Configs
+PUPPETS = load_puppet_configs()
+print PUPPETS
