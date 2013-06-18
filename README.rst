@@ -20,7 +20,7 @@ Sample Python Usage
         from geppetto import PuppetMaster
 
         # makes and installs puppet
-        puppet = PuppetMaster.create_puppet()
+        puppet = PuppetMaster.create_puppet('example_puppet')
         print "Puppet details: %s" % (puppet.instance)
 
 

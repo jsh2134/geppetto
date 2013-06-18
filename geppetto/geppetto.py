@@ -7,10 +7,10 @@ from fabric.api import sudo, put, cd
 from fabric.exceptions import NetworkError
 
 import ec2
+import modules
 import settings
+import logging
 
-
-env.key_filename = settings.AWS['secrets']['aws_key_path']
 
 class Puppet(object):
 
@@ -37,21 +37,23 @@ class Puppet(object):
 				return True
 			except NetworkError:
 				connect_attempts += 1
-				print "Failed to connect: used attempt %s of %s" % \
-												(connect_attempts, self.MAX_ATTEMPTS)
+				logging.warn("Failed to connect: used attempt %s of %s" % \
+												(connect_attempts, self.MAX_ATTEMPTS))
 				time.sleep(10)
 			except:
-				print "Failed to connect with error: %s" % (traceback.format_exc())
+				logging.error("Failed to connect with error: %s" % (traceback.format_exc()))
 				return False
 		
 
 class EC2Puppet(Puppet):
 
-	def __init__(self):
+	def __init__(self, config):
 		self.cloud_type = Puppet.EC2
+		self.config = config
 
 	def create(self):
-		ec2conn = ec2.EC2Conn()
+		env.key_filename = os.path.join(self.config['aws']['aws_key_path'], self.config['aws']['key_name'])
+		ec2conn = ec2.EC2Conn(self.config)
 		ec2conn.connect()
 		self.instance = ec2conn.create_instance()
 
@@ -68,9 +70,15 @@ class PuppetMaster(object):
 	"""A Singleton Object"""
 
 	@classmethod
-	def create_puppet(cls):
+	def create_puppet(cls, config_name):
+		
+		try:
+			config = settings.PUPPETS[config_name]
+		except KeyError as e:
+			logging.error("Could not find config '%s'" % config_name)
+		print config
 
-		puppet = EC2Puppet()
+		puppet = EC2Puppet(config)
 		puppet.create()
 
 		# Install
@@ -85,7 +93,7 @@ class PuppetMaster(object):
 		print "Doing Installation on %s" % env.host_string
 
 		# Create User
-		user = settings.PROJECT_NAME
+		user = cls.config['name']
 		remote_home_dir = os.path.join('home',user)
 		with settings(warn_only=True):
 			sudo('useradd -U -m %s' % user)
@@ -95,8 +103,43 @@ class PuppetMaster(object):
 			sudo('mkdir %s' % remote_code_dir)
 
 		# Install packages with yum
-		sudo('yum install -y %s' % (" ".join(settings.YUM_PACKAGES)))
+		if 'yum' in cls.config:
+			sudo('yum install -y %s' % (" ".join(cls.config['yum'].keys())))
 
 		# Install Python requirements with pip
-		put(settings.PIP_REQS, remote_home_dir, use_sudo=True)
+		if 'pip_file' in cls.config:
+
+			if not modules.pip.is_pip_installed():
+				modules.pip.install_pip()
+
+			if len(cls.config['pip_file'].keys()) > 0:
+				file_name = cls.config['pip_file'].keys()[0]
+				put(file_name, remote_home_dir, use_sudo=True)
+				sudo('pip install -r %s ' % file_name)
+			else:
+				logging.error("Config Error: You must include a file name if using the 'pip_file' parameter. Ignoring")
+
+		if 'pip_packages' in cls.config:
+
+			if not modules.pip.is_pip_installed():
+				modules.pip.install_pip()
+
+			sudo('pip install %s ' % " ".join(cls.config['packages'].keys()))
+
+		# Install Redis
+		# TODO test
+		if 'redis' in cls.config:
+			modules.redis.install_redis()
+
+			if not modules.pip.is_pip_installed():
+				modules.pip.install_pip()
+		
+			sudo('pip install redis')
+
+		# Install Supervisor
+		# TODO test
+		if 'supervisor' in cls.config:
+			modules.supervisor.install_supervisor()
+
+
 

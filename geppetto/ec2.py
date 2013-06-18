@@ -1,29 +1,27 @@
-from boto.ec2.connection import EC2Connection
-from settings import AWS
-
 import time
-
-
-SERVER = {
-		'image_id' : AWS['defaults']['image_id'],
-		'instance_type' : AWS['defaults']['instance_type'],
-		'security_groups' : AWS['defaults']['security_groups'],
-		'key_name' : AWS['defaults']['key_name'],
-}
+from boto.ec2.connection import EC2Connection
 
 
 class EC2Conn:
 
-	def __init__(self):
+	def __init__(self, config):
 		self.conn = None
+		self.config = config
 
 
 	def connect(self):
-		self.conn = EC2Connection(AWS['secrets']['aws_key'],
-								  AWS['secrets']['aws_secret'])
+		self.conn = EC2Connection(self.config['aws']['aws_key'],
+								  self.config['aws']['aws_secret'])
 
 	def create_instance(self):
-		reservation = self.conn.run_instances( **SERVER)
+		server_config = {
+				'image_id' : self.config['aws']['image_id'],
+				'instance_type' : self.config['aws']['instance_type'],
+				'security_groups' : self.config['aws']['security_groups'],
+				'key_name' : self.config['aws']['key_name'],
+		}
+
+		reservation = self.conn.run_instances(**server_config)
 		instance = reservation.instances[0]
 
 		while instance.state != 'running':
