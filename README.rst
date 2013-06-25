@@ -8,10 +8,14 @@ Status
 This is still a work in progress and most likely is broken right now. Moving towards a stable release.
 
 Currently working on
-- defining multiple Puppet configs
 - installing everything under virtualenv
-- examples
+- verifying correct install of redis and supervisor
+- test suite
+- stable release
 
+Recently Completed
+- defining multiple Puppet configs
+- examples
 
 Sample Python Usage
 --------------------
