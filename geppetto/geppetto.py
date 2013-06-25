@@ -1,15 +1,42 @@
 import time
 import os
+import sys
 import traceback
+import ConfigParser
 
 from fabric.api import env
-from fabric.api import sudo, put, cd
+from fabric.api import settings, sudo, put, cd
 from fabric.exceptions import NetworkError
 
 import ec2
-import modules
-import settings
+from modules import pip, redis, supervisor
 import logging
+
+
+def load_puppet_configs(configs_dir=None):
+
+	if not configs_dir:
+		base = os.path.dirname(__file__)
+		configs_path = os.path.abspath(os.path.join(base, 'puppets'))
+
+	config = ConfigParser.RawConfigParser(allow_no_value=True)
+	puppet_configs = [os.path.join(configs_path,f) for f in os.listdir(configs_path)]
+
+	puppets = {}
+	for puppet in puppet_configs:
+		config.read(puppet)
+		try:
+			name = config.get('main', 'name')
+		except:
+			logging.error('Config %s does not contain Section "%s" with variable "%s" ' % (puppet, 'main', 'name') )
+		puppets[name] = {}
+		for section in config.sections():
+			puppets[name][section] = dict(config.items(section))
+
+	logging.info("Loaded Configs for %s" % puppets.keys())
+	print("Loaded Configs for %s" % puppets.keys())
+
+	return puppets
 
 
 class Puppet(object):
@@ -27,7 +54,11 @@ class Puppet(object):
 		pass
 
 	def ssh(self):
-		pass
+		try:
+			env.host_string = "%s@%s" % (self.user, self.host)
+		except Exception as e:
+			logging.error("Failed to ssh to puppet with error: %s" % e)
+			raise
 
 	def connect(self):
 		connect_attempts = 0
@@ -50,20 +81,18 @@ class EC2Puppet(Puppet):
 	def __init__(self, config):
 		self.cloud_type = Puppet.EC2
 		self.config = config
+		self.user = self.config['aws']['login_user']
 
 	def create(self):
-		env.key_filename = os.path.join(self.config['aws']['aws_key_path'], self.config['aws']['key_name'])
+		env.key_filename = self.config['aws']['aws_key_path']
 		ec2conn = ec2.EC2Conn(self.config)
 		ec2conn.connect()
 		self.instance = ec2conn.create_instance()
 
 	def ssh(self):
-
-		# Set Fabric Env Host String
-		env.host_string = "ec2-user@%s" % (self.instance.ip_address) 
-
-		print "Implement Connect function"
-		return False
+		self.host = self.instance.public_dns_name
+		return Puppet.ssh(self)
+		
 
 
 class PuppetMaster(object):
@@ -71,75 +100,81 @@ class PuppetMaster(object):
 
 	@classmethod
 	def create_puppet(cls, config_name):
-		
-		try:
-			config = settings.PUPPETS[config_name]
-		except KeyError as e:
-			logging.error("Could not find config '%s'" % config_name)
-		print config
+		puppets = load_puppet_configs()
 
-		puppet = EC2Puppet(config)
+		try:
+			config = puppets[config_name]
+		except KeyError:
+			logging.error("Could not find config '%s'" % config_name)
+			sys.exit(1)
+
+		
+		if 'aws' in config:
+			puppet = EC2Puppet(config)
+		else:
+			puppet = Puppet(config)
+
 		puppet.create()
 
 		# Install
 		if puppet.connect():
-			cls.install_puppet()
+			cls.install_puppet(puppet)
 
 		return puppet
 
 	@classmethod
-	def install_puppet(cls):
+	def install_puppet(cls, puppet):
 
 		print "Doing Installation on %s" % env.host_string
 
 		# Create User
-		user = cls.config['name']
+		user = puppet.config['main']['name']
 		remote_home_dir = os.path.join('home',user)
 		with settings(warn_only=True):
-			sudo('useradd -U -m %s' % user)
+			sudo('useradd -m --shell=/bin/bash %s' % user, pty=True)
 		
 		remote_code_dir = os.path.join(remote_home_dir, 'app')
 		with settings(warn_only=True):
 			sudo('mkdir %s' % remote_code_dir)
 
 		# Install packages with yum
-		if 'yum' in cls.config:
-			sudo('yum install -y %s' % (" ".join(cls.config['yum'].keys())))
+		if 'yum' in puppet.config:
+			sudo('yum install -y %s' % (" ".join(puppet.config['yum'].keys())))
 
 		# Install Python requirements with pip
-		if 'pip_file' in cls.config:
+		if 'pip_file' in puppet.config:
 
-			if not modules.pip.is_pip_installed():
-				modules.pip.install_pip()
+			if not pip.is_pip_installed():
+				pip.install_pip()
 
-			if len(cls.config['pip_file'].keys()) > 0:
-				file_name = cls.config['pip_file'].keys()[0]
+			if len(puppet.config['pip_file'].keys()) > 0:
+				file_name = puppet.config['pip_file'].keys()[0]
 				put(file_name, remote_home_dir, use_sudo=True)
 				sudo('pip install -r %s ' % file_name)
 			else:
 				logging.error("Config Error: You must include a file name if using the 'pip_file' parameter. Ignoring")
 
-		if 'pip_packages' in cls.config:
+		if 'pip_packages' in puppet.config:
 
-			if not modules.pip.is_pip_installed():
-				modules.pip.install_pip()
+			if not pip.is_pip_installed():
+				pip.install_pip()
 
-			sudo('pip install %s ' % " ".join(cls.config['packages'].keys()))
+			sudo('pip install %s ' % " ".join(puppet.config['pip_packages'].keys()))
 
 		# Install Redis
 		# TODO test
-		if 'redis' in cls.config:
-			modules.redis.install_redis()
+		"""if 'redis' in puppet.config:
+			redis.install_redis()
 
-			if not modules.pip.is_pip_installed():
-				modules.pip.install_pip()
+			if not pip.is_pip_installed():
+				pip.install_pip()
 		
 			sudo('pip install redis')
 
 		# Install Supervisor
 		# TODO test
-		if 'supervisor' in cls.config:
-			modules.supervisor.install_supervisor()
-
+		if 'supervisor' in puppet.config:
+			supervisor.install_supervisor()
+		"""
 
 
