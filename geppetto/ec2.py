@@ -1,4 +1,7 @@
 import time
+import socket
+import logging
+
 from boto.ec2.connection import EC2Connection
 
 
@@ -13,11 +16,30 @@ class EC2Conn:
 		self.conn = EC2Connection(self.config['aws']['aws_key'],
 								  self.config['aws']['aws_secret'])
 
+	
+	def verify_ssh(self, host):
+		"""Confirm ability to SSH before returning"""
+		attempts = 0
+
+		while attempts < 25:
+			try:
+				s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				s.connect((host,22))
+				s.shutdown(2)
+				return True
+			except:
+				print "Launching Instance... Current Status: Attempting to SSH" 
+				time.sleep(5)
+				attempts+=1
+		
+		logging.error("Failed to SSH into %s:22 after 25 tries." % host)
+		return False
+
 	def create_instance(self):
 		server_config = {
 				'image_id' : self.config['aws']['image_id'],
 				'instance_type' : self.config['aws']['instance_type'],
-				'security_groups' : self.config['aws']['security_groups'],
+				'security_groups' : self.config['aws']['security_groups'].split(","),
 				'key_name' : self.config['aws']['key_name'],
 		}
 
@@ -25,12 +47,15 @@ class EC2Conn:
 		instance = reservation.instances[0]
 
 		while instance.state != 'running':
-			time.sleep(5)
+			time.sleep(15)
 			instance.update()
-			print "Instance state: %s" % (instance.state)
-		
-		# Sleep for a bit more before trying to connect
-		time.sleep(60)
+			print "Launching Instance... Amazon Status: %s" % (instance.state)
+
+		# Connect via SSH
+		self.verify_ssh(instance.public_dns_name)
+
+		# Add config details to Puppet
+		instance.config = self.config
 
 		print "instance %s done!" % (instance.id)
 
@@ -40,7 +65,7 @@ class EC2Conn:
 		success = self.conn.associate_address(instance_id=instance_id,
 									public_ip=ip)
 		if success: 
-			print "Sleeing for 60 seconds to let IP attach"
+			print "Sleeping for 60 seconds to let IP attach"
 			time.sleep(60)
 
 		return success
