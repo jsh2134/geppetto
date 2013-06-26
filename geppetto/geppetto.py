@@ -9,7 +9,8 @@ from fabric.api import settings, sudo, put, cd
 from fabric.exceptions import NetworkError
 
 import ec2
-from modules import pip, redis, supervisor
+from modules import pip, supervisor
+from modules.redis import redis
 import logging
 
 
@@ -129,7 +130,7 @@ class PuppetMaster(object):
 
 		# Create User
 		user = puppet.config['main']['name']
-		remote_home_dir = os.path.join('home',user)
+		remote_home_dir = os.path.join(os.sep, 'home', user)
 		with settings(warn_only=True):
 			sudo('useradd -m --shell=/bin/bash %s' % user, pty=True)
 		
@@ -162,9 +163,8 @@ class PuppetMaster(object):
 			sudo('pip install %s ' % " ".join(puppet.config['pip_packages'].keys()))
 
 		# Install Redis
-		# TODO test
-		"""if 'redis' in puppet.config:
-			redis.install_redis()
+		if 'redis' in puppet.config:
+			redis.install_redis(puppet.config['redis'])
 
 			if not pip.is_pip_installed():
 				pip.install_pip()
@@ -173,7 +173,7 @@ class PuppetMaster(object):
 
 		# Install Supervisor
 		# TODO test
-		if 'supervisor' in puppet.config:
+		"""if 'supervisor' in puppet.config:
 			supervisor.install_supervisor()
 		"""
 
