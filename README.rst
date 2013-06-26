@@ -10,12 +10,13 @@ This is still a work in progress and most likely is broken right now. Moving tow
 Currently working on:
 
 - installing everything under virtualenv
-- verifying correct install of redis and supervisor
+- verifying correct install of supervisor
 - test suite
 - stable release
 
 Recently Completed:
 
+- verifying correct install of redis
 - defining multiple Puppet configs
 - examples
 
