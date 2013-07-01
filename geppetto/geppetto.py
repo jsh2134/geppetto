@@ -9,8 +9,9 @@ from fabric.api import settings, sudo, put, cd
 from fabric.exceptions import NetworkError
 
 import ec2
-from modules import pip, supervisor
+from modules import pip
 from modules.redis import redis
+from modules.supervisor import supervisor
 import logging
 
 
@@ -173,8 +174,8 @@ class PuppetMaster(object):
 
 		# Install Supervisor
 		# TODO test
-		"""if 'supervisor' in puppet.config:
+		if 'supervisor' in puppet.config:
 			supervisor.install_supervisor()
-		"""
+		
 
 
