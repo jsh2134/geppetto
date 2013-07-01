@@ -3,8 +3,6 @@ Geppetto
 
 Deploy, Install and Administrate your Amazon Infrastructure fast
 
-Geppetto 
----------
 Use geppetto to deploy servers (puppets) according to a pre-written config. Geppetto makes it easy to define server configs, yum packages, pip packages and other deployment and installation pieces. 
 
 
